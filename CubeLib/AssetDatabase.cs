@@ -34,6 +34,7 @@ namespace CubeLib
             connection.Open();
         }
 
+
         public Asset[] GetAssets()
         {
             var fileList = new List<Asset>();
@@ -62,6 +63,7 @@ namespace CubeLib
             return fileList.ToArray();
         }
 
+
         public byte[] GetAssetData( Asset asset )
         {
             if ( asset == null )
@@ -80,6 +82,60 @@ namespace CubeLib
                 AssetTools.Descramble( valueData );
 
                 return valueData;
+            }
+        }
+
+        public void DeleteAsset( Asset asset )
+        {
+            if ( asset == null )
+                throw new ArgumentNullException( "asset" );
+
+            if ( asset.parentDb != this )
+                throw new ArgumentException( "Asset does not belong to this database" );
+
+            using ( var cmd = connection.CreateCommand() )
+            {
+                cmd.CommandText = "DELETE FROM `blobs` WHERE `key` = @keyName";
+                cmd.Parameters.AddWithValue( "@keyName", asset.FileName );
+
+                int affectedRows = cmd.ExecuteNonQuery();
+                if ( affectedRows != 1 )
+                {
+                    throw new InvalidOperationException( string.Format( "Unable to delete asset \"{0}\"", asset.FileName ) );
+                }
+            }
+        }
+        public Asset InsertAsset( string fileName, byte[] data, bool replace = true )
+        {
+            if ( string.IsNullOrWhiteSpace( fileName ) )
+                throw new ArgumentNullException( "fileName" );
+
+            if ( data == null )
+                throw new ArgumentNullException( "data" );
+
+            // scramble the data so cubeworld can unscramble it when loading
+            AssetTools.Scramble( data );
+
+            using ( var cmd = connection.CreateCommand() )
+            {
+                cmd.CommandText = "INSERT " + ( replace ? "OR REPLACE " : "" ) + "INTO `blobs` ( `key`, `value` ) VALUES ( @keyName, @data )";
+                cmd.Parameters.AddWithValue( "@keyName", fileName );
+                cmd.Parameters.AddWithValue( "@data", data );
+
+                int affectedRows = cmd.ExecuteNonQuery();
+
+                if ( affectedRows != 1 )
+                {
+                    throw new InvalidOperationException( string.Format( "Unable to insert asset \"{0}\"", fileName ) );
+                }
+
+                return new Asset
+                {
+                    parentDb = this,
+
+                    FileName = fileName,
+                    Size = data.Length,
+                };
             }
         }
 

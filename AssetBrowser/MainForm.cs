@@ -14,6 +14,7 @@ namespace AssetBrowser
     public partial class MainForm : Form
     {
         AssetDatabase currentDb;
+        DataFile currentFile;
 
 
         public MainForm()
@@ -24,31 +25,38 @@ namespace AssetBrowser
 
         void PopulateAssetRoot( DataFile file )
         {
+            UnloadAssetRoot();
+
+            currentFile = file;
+            currentDb = new AssetDatabase( file.FilePath );
+
+            using ( new ScopedListViewUpdate( assetListView ) )
+            {
+                foreach ( var asset in currentDb.GetAssets() )
+                {
+                    var lvi = new ListViewItem
+                    {
+                        Text = asset.FileName,
+                    };
+                    lvi.Tag = asset;
+
+                    lvi.SubItems.Add( BytesToString( asset.Size ) );
+
+                    assetListView.Items.Add( lvi );
+                }
+            }
+        }
+        void UnloadAssetRoot()
+        {
             if ( currentDb != null )
             {
                 currentDb.Dispose();
+                currentDb = null;
             }
 
-            assetListView.BeginUpdate();
+            currentFile = null;
 
             assetListView.Items.Clear();
-
-            currentDb = new AssetDatabase( file.FilePath );
-
-            foreach ( var asset in currentDb.GetAssets() )
-            {
-                var lvi = new ListViewItem
-                {
-                    Text = asset.FileName,
-                };
-                lvi.Tag = asset;
-
-                lvi.SubItems.Add( BytesToString( asset.Size ) );
-
-                assetListView.Items.Add( lvi );
-            }
-
-            assetListView.EndUpdate();
         }
 
 
@@ -90,6 +98,7 @@ namespace AssetBrowser
 
             // display our controls
             panel1.Visible = true;
+            editToolStripMenuItem.Visible = true;
         }
 
         private void exitToolStripMenuItem_Click( object sender, EventArgs e )
@@ -102,7 +111,10 @@ namespace AssetBrowser
             var file = dataFileListBox.SelectedItem as DataFile;
 
             if ( file == null )
+            {
+                UnloadAssetRoot();
                 return;
+            }
 
             PopulateAssetRoot( file );
         }
@@ -142,6 +154,58 @@ namespace AssetBrowser
             byte[] fileData = currentDb.GetAssetData( selectedItem.Tag as Asset );
             File.WriteAllBytes( sfd.FileName, fileData );
         }
+
+        private void deleteToolStripMenuItem_Click( object sender, EventArgs e )
+        {
+            var selectedItem = assetListView.SelectedItems[ 0 ];
+
+            var result = MessageBox.Show( this,
+                string.Format( "Are you sure you wish to delete \"{0}\"?", selectedItem.Text ), "Delete?",
+                MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question
+            );
+
+            if ( result != DialogResult.Yes )
+                return;
+
+            currentDb.DeleteAsset( selectedItem.Tag as Asset );
+
+            // refresh asset view
+            PopulateAssetRoot( currentFile );
+        }
+
+        private void insertToolStripMenuItem_Click( object sender, EventArgs e )
+        {
+            if ( currentDb == null )
+            {
+                MessageBox.Show( this, "Please select an asset root to insert into.", "Unable to insert", MessageBoxButtons.OK, MessageBoxIcon.Warning );
+                return;
+            }
+
+            var ofd = new OpenFileDialog
+            {
+                Title = "Select file to insert into database",
+
+                CheckFileExists = true,
+                CheckPathExists = true,
+
+                Filter = "All Files (*.*)|*.*",
+            };
+
+            if ( ofd.ShowDialog( this ) != DialogResult.OK )
+                return;
+
+            foreach ( var filePath in ofd.FileNames )
+            {
+                string fileName = Path.GetFileName( filePath );
+
+                byte[] data = File.ReadAllBytes( filePath );
+                currentDb.InsertAsset( fileName, data );
+            }
+
+            // refresh
+            PopulateAssetRoot( currentFile );
+        }
+
 
         static String BytesToString( long byteCount )
         {
