@@ -8,12 +8,12 @@ using System.IO;
 namespace CubeLib
 {
     /// <summary>
-    /// Represents information about a
+    /// Represents information about a single asset within a database.
     /// </summary>
     public class Asset
     {
-        public string FileName { get; set; }
-        public int Size { get; set; }
+        public string FileName { get; internal set; }
+        public int Size { get; internal set; }
 
         internal AssetDatabase parentDb;
     }
@@ -26,6 +26,10 @@ namespace CubeLib
         SQLiteConnection connection;
 
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AssetDatabase"/> class.
+        /// </summary>
+        /// <param name="path">The file path of the database to open.</param>
         public AssetDatabase( string path )
         {
             string connString = string.Format( "Data Source={0};", path );
@@ -35,6 +39,10 @@ namespace CubeLib
         }
 
 
+        /// <summary>
+        /// Gets a listing of every asset within this database.
+        /// </summary>
+        /// <returns>An array of assets contained in this database.</returns>
         public Asset[] GetAssets()
         {
             var fileList = new List<Asset>();
@@ -64,6 +72,11 @@ namespace CubeLib
         }
 
 
+        /// <summary>
+        /// Gets the underlying data of a given asset.
+        /// </summary>
+        /// <param name="asset">The asset.</param>
+        /// <returns>A byte array representing the data of the asset.</returns>
         public byte[] GetAssetData( Asset asset )
         {
             if ( asset == null )
@@ -79,12 +92,17 @@ namespace CubeLib
 
                 byte[] valueData = ( byte[] )cmd.ExecuteScalar();
 
+                // asset data is stored in a scrambled format, so we'll descramble it in-place first
                 AssetTools.Descramble( valueData );
 
                 return valueData;
             }
         }
 
+        /// <summary>
+        /// Deletes the given asset from the database.
+        /// </summary>
+        /// <param name="asset">The asset to delete.</param>
         public void DeleteAsset( Asset asset )
         {
             if ( asset == null )
@@ -105,6 +123,13 @@ namespace CubeLib
                 }
             }
         }
+        /// <summary>
+        /// Inserts a new asset into the database.
+        /// </summary>
+        /// <param name="fileName">The short filename of the asset, including the extension.</param>
+        /// <param name="data">The data of this asset.</param>
+        /// <param name="replace">If set to <c>true</c>, an existing asset with this name will be replaced.</param>
+        /// <returns>An <see cref="Asset"/> object for the newly inserted asset.</returns>
         public Asset InsertAsset( string fileName, byte[] data, bool replace = true )
         {
             if ( string.IsNullOrWhiteSpace( fileName ) )
@@ -139,6 +164,10 @@ namespace CubeLib
             }
         }
 
+
+        /// <summary>
+        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        /// </summary>
         public void Dispose()
         {
             connection.Dispose();

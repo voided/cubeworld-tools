@@ -5,6 +5,9 @@ using System.Text;
 
 namespace CubeLib
 {
+    /// <summary>
+    /// Various asset utilities.
+    /// </summary>
     public static class AssetTools
     {
         static int[] offsetLookupTable = 
